@@ -1,58 +1,73 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const { sequelize } = require('./models');
-
-// IMPORTAR DEPENDENCIAS PARA SESIÓN Y PASSPORT
 const session = require('express-session');
 const passport = require('passport');
 const cors = require('cors');
+const cookieParser = require('cookie-parser'); // Importar cookie-parser
+const SequelizeStore = require('connect-session-sequelize')(session.Store); // Almacén de sesiones Sequelize
 
-// Cargar variables de entorno
 dotenv.config();
 
-// Cargar configuración de Passport (GoogleStrategy, etc.)
-require('./config/passport');
+require('./config/passport'); // Configuración de Passport
 
 const app = express();
 app.use(express.json());
+app.use(cookieParser()); // Middleware para parsear cookies
 
-// CONFIGURACIÓN CORS (ajusta origin según tu dominio/frontend)
+// Configuración de CORS
 app.use(
     cors({
         origin: process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000',
         credentials: true,
     })
 );
-app.set("trust proxy", 1);
-// CONFIGURAR LA SESIÓN
+
+// Configuración de SequelizeStore para las sesiones
+const sessionStore = new SequelizeStore({
+    db: sequelize,
+    tableName: 'sessions',
+});
+
+// Sincronizar el almacén de sesiones
+sessionStore.sync().catch((error) => {
+    console.error('Error al sincronizar el almacén de sesiones:', error);
+});
+
+app.set('trust proxy', 1); // Requerido para cookies seguras en HTTPS
+
+// Configurar sesiones con SequelizeStore
 app.use(
     session({
         secret: process.env.SESSION_SECRET,
         resave: false,
         saveUninitialized: false,
-        store: sessionStore, // Usar SequelizeStore o similar
+        store: sessionStore,
         cookie: {
             httpOnly: true,
-            secure: true, // Solo con HTTPS
-            sameSite: "none", // Requerido para CORS
+            secure: true, // Asegúrate de que tu servidor usa HTTPS
+            sameSite: 'none', // Necesario para cookies compartidas con frontend
             maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
         },
     })
 );
 
-// INICIALIZAR PASSPORT
+// Inicializar Passport y sesiones
 app.use(passport.initialize());
 app.use(passport.session());
 
-// IMPORTAR RUTAS
+// Rutas
 const userRoutes = require('./routes/userRoutes');
 const authRoutes = require('./routes/auth');
 
-// USAR RUTAS
-app.use('/users', userRoutes);
+// Middleware de autenticación
+const isAuthenticated = require('./middlewares/isAuthenticated');
+
+// Rutas
+app.use('/users', isAuthenticated, userRoutes); // Proteger las rutas con isAuthenticated
 app.use('/auth', authRoutes);
 
-// RUTA DE PRUEBA
+// Ruta de prueba para verificar que el backend responde
 app.get('/ping', (req, res) => {
     res.status(200).json({ message: 'Backend funcionando correctamente!' });
 });
