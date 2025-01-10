@@ -11,16 +11,21 @@ router.get(
 );
 
 // 2) Callback
-router.get("/google/callback",
+router.get(
+    "/google/callback",
     passport.authenticate("google", {
-        failureRedirect: `${FRONTEND_URL}/error`, // o la ruta que quieras
+        failureRedirect: `${FRONTEND_URL}/error`,
     }),
     (req, res) => {
-        // Si el usuario se autenticó bien, ya lo tenemos en req.user
-        // Redirige a tu frontend
-        return res.redirect(`${FRONTEND_URL}/dashboard`);
+        const { name, email, image } = req.user;
+        // Redirige al dashboard con los datos del usuario como query params
+        const redirectUrl = `${FRONTEND_URL}/dashboard?name=${encodeURIComponent(
+            name
+        )}&email=${encodeURIComponent(email)}&image=${encodeURIComponent(image)}`;
+        return res.redirect(redirectUrl);
     }
 );
+
 
 // Ejemplo: obtener usuario logueado
 router.get("/me", (req, res) => {
