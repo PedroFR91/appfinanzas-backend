@@ -1,4 +1,3 @@
-// server.js
 const express = require('express');
 const dotenv = require('dotenv');
 const { sequelize } = require('./models');
@@ -35,8 +34,6 @@ app.use(
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             maxAge: 1000 * 60 * 60 * 24, // 1 día
-            // Si tu frontend y backend están en distintos dominios
-            // y quieres enviar cookies cross-site, pon sameSite: 'none'
             sameSite: 'lax',
         },
     })
@@ -53,6 +50,11 @@ const authRoutes = require('./routes/auth');
 // USAR RUTAS
 app.use('/users', userRoutes);
 app.use('/auth', authRoutes);
+
+// RUTA DE PRUEBA
+app.get('/ping', (req, res) => {
+    res.status(200).json({ message: 'Backend funcionando correctamente!' });
+});
 
 const PORT = process.env.PORT || 5000;
 
