@@ -23,18 +23,19 @@ app.use(
         credentials: true,
     })
 );
-
+app.set("trust proxy", 1);
 // CONFIGURAR LA SESIÓN
 app.use(
     session({
         secret: process.env.SESSION_SECRET,
         resave: false,
         saveUninitialized: false,
+        store: sessionStore, // Usar SequelizeStore o similar
         cookie: {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            maxAge: 1000 * 60 * 60 * 24, // 1 día
-            sameSite: 'none',
+            secure: true, // Solo con HTTPS
+            sameSite: "none", // Requerido para CORS
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
         },
     })
 );
