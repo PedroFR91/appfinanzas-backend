@@ -59,13 +59,14 @@ app.use(passport.session());
 // Rutas
 const userRoutes = require('./routes/userRoutes');
 const authRoutes = require('./routes/auth');
-
+const dataRoutes = require('./routes/dataRoutes');
 // Middleware de autenticación
 const isAuthenticated = require('./middlewares/isAuthenticated');
 
 // Rutas
 app.use('/users', isAuthenticated, userRoutes); // Proteger las rutas con isAuthenticated
 app.use('/auth', authRoutes);
+app.use('/data', isAuthenticated, dataRoutes);
 
 // Ruta de prueba para verificar que el backend responde
 app.get('/ping', (req, res) => {
