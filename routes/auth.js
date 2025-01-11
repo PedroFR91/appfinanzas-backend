@@ -29,10 +29,13 @@ router.get(
 
 // Ejemplo: obtener usuario logueado
 router.get("/me", (req, res) => {
+    console.log("Cookies:", req.cookies); // Verifica las cookies
+    console.log("Session:", req.session); // Verifica si la sesión existe
     if (!req.user) {
         return res.status(401).json({ message: "No autenticado" });
     }
     res.json(req.user);
 });
+
 
 module.exports = router;
