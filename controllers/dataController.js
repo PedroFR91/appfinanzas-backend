@@ -20,3 +20,30 @@ exports.createEntries = async (req, res) => {
     }
 };
 
+// Obtener todos los datos
+exports.getAllData = async (req, res) => {
+    try {
+        const entries = await Data.findAll();
+        const dashboardData = transformData(entries); // Formato específico para el dashboard
+        res.status(200).json({ entries, dashboardData });
+    } catch (error) {
+        console.error("Error al obtener los datos:", error);
+        res.status(500).json({ error: "Error al obtener los datos." });
+    }
+};
+
+// Eliminar una entrada por ID
+exports.deleteEntryById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const deleted = await Data.destroy({ where: { id } });
+        if (deleted) {
+            res.status(200).json({ message: "Entrada eliminada correctamente." });
+        } else {
+            res.status(404).json({ error: "Entrada no encontrada." });
+        }
+    } catch (error) {
+        console.error("Error al eliminar la entrada:", error);
+        res.status(500).json({ error: "Error al eliminar la entrada." });
+    }
+};
