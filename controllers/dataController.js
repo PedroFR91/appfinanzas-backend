@@ -1,10 +1,11 @@
 const { Data } = require("../models");
+const XLSX = require("xlsx");
 
 // Crear múltiples entradas
 exports.createEntries = async (req, res) => {
     console.log("Datos recibidos en /data:", req.body);
 
-    const { entries, userId } = req.body; // Asegurarnos de recibir userId
+    const { entries, userId } = req.body;
     if (!entries || !Array.isArray(entries) || !userId) {
         console.error("Error: formato de datos no válido o falta userId");
         return res.status(400).json({ error: "Datos no válidos o falta userId" });
@@ -13,7 +14,7 @@ exports.createEntries = async (req, res) => {
     try {
         const entriesWithUserId = entries.map((entry) => ({
             ...entry,
-            userId, // Asociar cada entrada al usuario
+            userId,
         }));
 
         console.log("Preparando para guardar en la base de datos:", entriesWithUserId);
@@ -29,7 +30,7 @@ exports.createEntries = async (req, res) => {
 // Obtener todos los datos para un usuario
 exports.getAllData = async (req, res) => {
     try {
-        const { userId } = req.query; // Filtrar por userId pasado como query param
+        const { userId } = req.query;
         if (!userId) {
             return res.status(400).json({ error: "userId es obligatorio" });
         }
@@ -59,5 +60,57 @@ exports.deleteEntryById = async (req, res) => {
     } catch (error) {
         console.error("Error al eliminar la entrada:", error);
         res.status(500).json({ error: "Error al eliminar la entrada." });
+    }
+};
+
+// Procesar archivo Excel
+exports.uploadExcel = async (req, res) => {
+    const { file } = req;
+    const { userId } = req.body;
+
+    if (!file || !userId) {
+        return res.status(400).json({ error: "Archivo o userId no proporcionado" });
+    }
+
+    try {
+        // Leer y procesar el archivo Excel
+        const workbook = XLSX.read(file.buffer, { type: "buffer" });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const rawEntries = XLSX.utils.sheet_to_json(sheet);
+
+        const entries = rawEntries.map((row) => ({
+            userId,
+            date: row["DATE"],
+            day: row["DAY"],
+            open: row["OPEN"],
+            close: row["CLOSE"],
+            asset: row["ASSET"],
+            session: row["SESSION"],
+            buySell: row["BUY_SELL"],
+            lots: row["LOTS"],
+            tpSlBe: row["TP/SL"],
+            pnl: row["$P&L"],
+            pnlPercentage: row["%P&L"],
+            ratio: row["RATIO"],
+            risk: row["RISK"],
+            temporalidad: row["TEMPORALIDAD"],
+        }));
+
+        const validEntries = entries.filter(
+            (entry) =>
+                entry.date && entry.asset && entry.tpSlBe && entry.pnl !== undefined
+        );
+
+        if (validEntries.length === 0) {
+            return res.status(400).json({ error: "No se encontraron datos válidos" });
+        }
+
+        await Data.bulkCreate(validEntries);
+
+        res.status(201).json({ message: "Datos procesados y guardados correctamente" });
+    } catch (error) {
+        console.error("Error al procesar el archivo Excel:", error);
+        res.status(500).json({ error: "Error al procesar el archivo" });
     }
 };
