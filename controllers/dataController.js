@@ -65,52 +65,45 @@ exports.deleteEntryById = async (req, res) => {
 
 // Procesar archivo Excel
 exports.uploadExcel = async (req, res) => {
-    const { file } = req;
-    const { userId } = req.body;
-
-    if (!file || !userId) {
-        return res.status(400).json({ error: "Archivo o userId no proporcionado" });
-    }
-
     try {
-        // Leer y procesar el archivo Excel
-        const workbook = XLSX.read(file.buffer, { type: "buffer" });
-        const sheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[sheetName];
-        const rawEntries = XLSX.utils.sheet_to_json(sheet);
-
-        const entries = rawEntries.map((row) => ({
-            userId,
-            date: row["DATE"],
-            day: row["DAY"],
-            open: row["OPEN"],
-            close: row["CLOSE"],
-            asset: row["ASSET"],
-            session: row["SESSION"],
-            buySell: row["BUY_SELL"],
-            lots: row["LOTS"],
-            tpSlBe: row["TP/SL"],
-            pnl: row["$P&L"],
-            pnlPercentage: row["%P&L"],
-            ratio: row["RATIO"],
-            risk: row["RISK"],
-            temporalidad: row["TEMPORALIDAD"],
-        }));
-
-        const validEntries = entries.filter(
-            (entry) =>
-                entry.date && entry.asset && entry.tpSlBe && entry.pnl !== undefined
-        );
-
-        if (validEntries.length === 0) {
-            return res.status(400).json({ error: "No se encontraron datos válidos" });
+        if (!req.file || !req.body.userId) {
+            return res.status(400).json({ error: "Archivo o userId no proporcionado" });
         }
 
-        await Data.bulkCreate(validEntries);
+        const { buffer } = req.file; // Archivo cargado
+        const userId = parseInt(req.body.userId, 10);
 
-        res.status(201).json({ message: "Datos procesados y guardados correctamente" });
+        // Leer archivo Excel
+        const workbook = XLSX.read(buffer, { type: "buffer" });
+        const sheetName = workbook.SheetNames[0];
+        const data = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: null });
+
+        // Filtrar y transformar datos
+        const validEntries = data
+            .filter((row) => row.DATE && row.ASSET && row.SESSION) // Filtrar filas válidas
+            .map((row) => ({
+                userId,
+                date: new Date(row.DATE),
+                day: row.DAY || null,
+                open: row.OPEN || "00:00:00",
+                close: row.CLOSE || "00:00:00",
+                asset: row.ASSET,
+                session: row.SESSION,
+                buySell: row["BUY/SELL"] || null,
+                lots: parseFloat(row.LOTES) || null,
+                tpSlBe: row["TP/SL"] || null,
+                pnl: parseFloat(row["$P&L"]) || 0,
+                pnlPercentage: parseFloat(row["%P&L"]) || 0,
+                ratio: row.RATIO || null,
+                risk: parseFloat(row.RISK) || 0,
+                temporalidad: row.TEMP || null,
+            }));
+
+        // Guardar en la base de datos
+        const createdEntries = await Data.bulkCreate(validEntries);
+        res.status(201).json({ message: "Entradas creadas con éxito", data: createdEntries });
     } catch (error) {
         console.error("Error al procesar el archivo Excel:", error);
-        res.status(500).json({ error: "Error al procesar el archivo" });
+        res.status(500).json({ error: "Error al procesar el archivo Excel", details: error.message });
     }
 };
