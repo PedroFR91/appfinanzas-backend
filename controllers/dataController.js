@@ -1,32 +1,44 @@
-const { Data } = require('../models');
+const { Data } = require("../models");
 
 // Crear múltiples entradas
 exports.createEntries = async (req, res) => {
-    console.log('Datos recibidos en /data:', req.body);
+    console.log("Datos recibidos en /data:", req.body);
 
-    const { entries } = req.body;
-    if (!entries || !Array.isArray(entries)) {
-        console.error('Error: formato de datos no válido');
-        return res.status(400).json({ error: 'Datos no válidos' });
+    const { entries, userId } = req.body; // Asegurarnos de recibir userId
+    if (!entries || !Array.isArray(entries) || !userId) {
+        console.error("Error: formato de datos no válido o falta userId");
+        return res.status(400).json({ error: "Datos no válidos o falta userId" });
     }
 
     try {
-        console.log('Preparando para guardar en la base de datos:', entries);
-        const createdEntries = await Data.bulkCreate(entries);
-        console.log('Entradas creadas con éxito:', createdEntries);
+        const entriesWithUserId = entries.map((entry) => ({
+            ...entry,
+            userId, // Asociar cada entrada al usuario
+        }));
+
+        console.log("Preparando para guardar en la base de datos:", entriesWithUserId);
+        const createdEntries = await Data.bulkCreate(entriesWithUserId);
+        console.log("Entradas creadas con éxito:", createdEntries);
         res.status(201).json(createdEntries);
     } catch (error) {
-        console.error('Error al guardar en la base de datos:', error.message);
-        res.status(500).json({ error: 'Error al guardar los datos', details: error.message });
+        console.error("Error al guardar en la base de datos:", error.message);
+        res.status(500).json({ error: "Error al guardar los datos", details: error.message });
     }
 };
 
-// Obtener todos los datos
+// Obtener todos los datos para un usuario
 exports.getAllData = async (req, res) => {
     try {
-        const entries = await Data.findAll();
-        console.log("Datos obtenidos de la base de datos:", entries);
+        const { userId } = req.query; // Filtrar por userId pasado como query param
+        if (!userId) {
+            return res.status(400).json({ error: "userId es obligatorio" });
+        }
 
+        const entries = await Data.findAll({
+            where: { userId },
+        });
+
+        console.log("Datos obtenidos de la base de datos:", entries);
         res.status(200).json({ entries });
     } catch (error) {
         console.error("Error al obtener los datos:", error);
