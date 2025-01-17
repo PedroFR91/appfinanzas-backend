@@ -118,16 +118,17 @@ exports.uploadExcel = async (req, res) => {
                 // Convertimos la fecha a Date
                 const dateValue = row.DATE ? new Date(row.DATE) : null;
 
-                console.log("Row completo:", row);
-                // Antes de parsear, logueamos el valor crudo
-                console.log("RATIO (raw):", row.RATIO);
-
                 // Parseamos
                 const ratioValue = parseRatio(row.RATIO);
-
-                // Después de parsear, logueamos el resultado
-                console.log("RATIO (parsed):", ratioValue);
-
+                function parsePnl(value) {
+                    if (!value) return 0; // Si está vacío, devolver 0
+                    // Quitar símbolos no numéricos (excepto el punto o coma decimal)
+                    const cleanedValue = value.replace(/[^\d.-]/g, "").replace(",", ".");
+                    const numericValue = parseFloat(cleanedValue);
+                    return isNaN(numericValue) ? 0 : numericValue; // Si no es un número válido, devolver 0
+                }
+                // Procesamos P&L
+                const pnlValue = parsePnl(row["$P&L"]);
                 // Creamos el objeto final para guardar
                 return {
                     userId,
@@ -140,9 +141,9 @@ exports.uploadExcel = async (req, res) => {
                     buySell: row["BUY/SELL"]?.trim() || null,
                     lots: parseFloat(row.LOTES) || 0,
                     tpSlBe: row["TP/SL"] || null,
-                    pnl: parseFloat(row["$P&L"]) || 0,
+                    pnl: pnlValue,
                     pnlPercentage: parseFloat(row["%P&L"]) || 0,
-                    ratio: ratioValue, // RATIO convertido a número
+                    ratio: ratioValue,
                     risk: parseFloat(row.RISK) || 0,
                     temporalidad: row.TEMP || null,
                 };
