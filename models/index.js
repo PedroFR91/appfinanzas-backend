@@ -5,12 +5,14 @@ const path = require('path');
 const Sequelize = require('sequelize');
 const process = require('process');
 const basename = path.basename(__filename);
+require('dotenv').config();
+
 const db = {};
 
 // Leer variables de entorno
 const {
   DB_NAME,
-  DB_USER,
+  DB_USERNAME,
   DB_PASSWORD,
   DB_HOST,
   DB_PORT,
@@ -18,13 +20,12 @@ const {
 } = process.env;
 
 // Configuración de Sequelize
-const sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASSWORD, {
+const sequelize = new Sequelize(DB_NAME, DB_USERNAME, DB_PASSWORD, {
   host: DB_HOST,
   port: DB_PORT || 3306,
   dialect: 'mysql',
   logging: NODE_ENV === 'development' ? console.log : false,
 });
-
 // Cargar modelos dinámicamente
 fs
   .readdirSync(__dirname)

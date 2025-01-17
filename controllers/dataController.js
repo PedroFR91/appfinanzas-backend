@@ -63,6 +63,7 @@ exports.deleteEntryById = async (req, res) => {
     }
 };
 
+
 // Procesar archivo Excel
 exports.uploadExcel = async (req, res) => {
     try {
@@ -76,21 +77,26 @@ exports.uploadExcel = async (req, res) => {
         // Leer archivo Excel
         const workbook = XLSX.read(buffer, { type: "buffer" });
         const sheetName = workbook.SheetNames[0];
-        const data = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: null });
+        const data = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
+            defval: null,
+            cellDates: true,
+            raw: false,
+        });
+
 
         // Filtrar y transformar datos
         const validEntries = data
             .filter((row) => row.DATE && row.ASSET && row.SESSION) // Filtrar filas válidas
             .map((row) => ({
                 userId,
-                date: new Date(row.DATE),
+                date: row.DATE ? new Date(row.DATE) : null, // Convertir fecha
                 day: row.DAY || null,
-                open: row.OPEN || "00:00:00",
-                close: row.CLOSE || "00:00:00",
+                open: row.OPEN ? row.OPEN.toString() : "00:00:00", // Validar horas
+                close: row.CLOSE ? row.CLOSE.toString() : "00:00:00",
                 asset: row.ASSET,
                 session: row.SESSION,
-                buySell: row["BUY/SELL"] || null,
-                lots: parseFloat(row.LOTES) || null,
+                buySell: row["BUY/SELL"]?.trim() || null, // Eliminar espacios
+                lots: parseFloat(row.LOTES) || 0, // Valores numéricos por defecto
                 tpSlBe: row["TP/SL"] || null,
                 pnl: parseFloat(row["$P&L"]) || 0,
                 pnlPercentage: parseFloat(row["%P&L"]) || 0,
@@ -99,11 +105,15 @@ exports.uploadExcel = async (req, res) => {
                 temporalidad: row.TEMP || null,
             }));
 
+        // Validar que no hay campos esenciales faltantes
+        const sanitizedEntries = validEntries.filter((entry) => entry.date && entry.asset && entry.session);
+
         // Guardar en la base de datos
-        const createdEntries = await Data.bulkCreate(validEntries);
+        const createdEntries = await Data.bulkCreate(sanitizedEntries);
         res.status(201).json({ message: "Entradas creadas con éxito", data: createdEntries });
     } catch (error) {
         console.error("Error al procesar el archivo Excel:", error);
         res.status(500).json({ error: "Error al procesar el archivo Excel", details: error.message });
     }
 };
+

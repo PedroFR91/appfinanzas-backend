@@ -18,7 +18,7 @@ app.use(cookieParser()); // Middleware para parsear cookies
 // Configuración de CORS
 app.use(
     cors({
-        origin: process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000',
+        origin: process.env.NEXT_PUBLIC_FRONTEND_URL,
         credentials: true,
     })
 );
@@ -35,7 +35,7 @@ sessionStore.sync().catch((error) => {
 });
 
 app.set('trust proxy', 1); // Requerido para cookies seguras en HTTPS
-
+console.log('NODE_ENV:', process.env.NODE_ENV);
 // Configurar sesiones con SequelizeStore
 app.use(
     session({
@@ -45,12 +45,15 @@ app.use(
         store: sessionStore,
         cookie: {
             httpOnly: true,
-            secure: true, // Asegúrate de que tu servidor usa HTTPS
-            sameSite: 'none', // Necesario para cookies compartidas con frontend
-            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
+            // En DESARROLLO local (HTTP), secure debe ser false:
+            secure: process.env.NODE_ENV === 'production',
+            // Para cross-site:
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
         },
     })
 );
+
 
 // Inicializar Passport y sesiones
 app.use(passport.initialize());
