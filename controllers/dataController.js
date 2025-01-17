@@ -39,7 +39,7 @@ exports.getAllData = async (req, res) => {
             where: { userId },
         });
 
-        console.log("Datos obtenidos de la base de datos:", entries);
+
         res.status(200).json({ entries });
     } catch (error) {
         console.error("Error al obtener los datos:", error);
@@ -68,52 +68,100 @@ exports.deleteEntryById = async (req, res) => {
 exports.uploadExcel = async (req, res) => {
     try {
         if (!req.file || !req.body.userId) {
-            return res.status(400).json({ error: "Archivo o userId no proporcionado" });
+            return res
+                .status(400)
+                .json({ error: "Archivo o userId no proporcionado" });
         }
 
-        const { buffer } = req.file; // Archivo cargado
+        const { buffer } = req.file;
         const userId = parseInt(req.body.userId, 10);
 
-        // Leer archivo Excel
+        // Leer el archivo Excel
         const workbook = XLSX.read(buffer, { type: "buffer" });
         const sheetName = workbook.SheetNames[0];
-        const data = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
+        const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
             defval: null,
             cellDates: true,
             raw: false,
         });
 
+        // Convertir claves con espacios a claves sin espacios
+        const data = rawData.map((obj) => {
+            const sanitizedObj = {};
+            for (const key in obj) {
+                // Hacemos trim() a la clave
+                const trimmedKey = key.trim();
+                sanitizedObj[trimmedKey] = obj[key];
+            }
+            return sanitizedObj;
+        });
+
+        // Aquí definimos la lógica para parsear la columna RATIO (ej. "1-2" => 0.5)
+        function parseRatio(value) {
+            if (!value) return null; // Manejar vacío, undefined, null
+            // Separar por '-' o ':' (puedes añadir más delimitadores si lo deseas)
+            const parts = value.split(/[-:]/);
+            if (parts.length === 2) {
+                const [num, den] = parts.map((x) => parseFloat(x.trim()));
+                if (!isNaN(num) && !isNaN(den) && den !== 0) {
+                    return num / den;
+                }
+            }
+            // Si no cumple el formato esperado, devuelve nulo o el string original
+            return null;
+        }
 
         // Filtrar y transformar datos
         const validEntries = data
             .filter((row) => row.DATE && row.ASSET && row.SESSION) // Filtrar filas válidas
-            .map((row) => ({
-                userId,
-                date: row.DATE ? new Date(row.DATE) : null, // Convertir fecha
-                day: row.DAY || null,
-                open: row.OPEN ? row.OPEN.toString() : "00:00:00", // Validar horas
-                close: row.CLOSE ? row.CLOSE.toString() : "00:00:00",
-                asset: row.ASSET,
-                session: row.SESSION,
-                buySell: row["BUY/SELL"]?.trim() || null, // Eliminar espacios
-                lots: parseFloat(row.LOTES) || 0, // Valores numéricos por defecto
-                tpSlBe: row["TP/SL"] || null,
-                pnl: parseFloat(row["$P&L"]) || 0,
-                pnlPercentage: parseFloat(row["%P&L"]) || 0,
-                ratio: row.RATIO || null,
-                risk: parseFloat(row.RISK) || 0,
-                temporalidad: row.TEMP || null,
-            }));
+            .map((row) => {
+                // Convertimos la fecha a Date
+                const dateValue = row.DATE ? new Date(row.DATE) : null;
+
+                console.log("Row completo:", row);
+                // Antes de parsear, logueamos el valor crudo
+                console.log("RATIO (raw):", row.RATIO);
+
+                // Parseamos
+                const ratioValue = parseRatio(row.RATIO);
+
+                // Después de parsear, logueamos el resultado
+                console.log("RATIO (parsed):", ratioValue);
+
+                // Creamos el objeto final para guardar
+                return {
+                    userId,
+                    date: dateValue,
+                    day: row.DAY || null,
+                    open: row.OPEN ? row.OPEN.toString() : "00:00:00",
+                    close: row.CLOSE ? row.CLOSE.toString() : "00:00:00",
+                    asset: row.ASSET,
+                    session: row.SESSION,
+                    buySell: row["BUY/SELL"]?.trim() || null,
+                    lots: parseFloat(row.LOTES) || 0,
+                    tpSlBe: row["TP/SL"] || null,
+                    pnl: parseFloat(row["$P&L"]) || 0,
+                    pnlPercentage: parseFloat(row["%P&L"]) || 0,
+                    ratio: ratioValue, // RATIO convertido a número
+                    risk: parseFloat(row.RISK) || 0,
+                    temporalidad: row.TEMP || null,
+                };
+            });
 
         // Validar que no hay campos esenciales faltantes
-        const sanitizedEntries = validEntries.filter((entry) => entry.date && entry.asset && entry.session);
+        const sanitizedEntries = validEntries.filter(
+            (entry) => entry.date && entry.asset && entry.session
+        );
 
         // Guardar en la base de datos
         const createdEntries = await Data.bulkCreate(sanitizedEntries);
-        res.status(201).json({ message: "Entradas creadas con éxito", data: createdEntries });
+        res
+            .status(201)
+            .json({ message: "Entradas creadas con éxito", data: createdEntries });
     } catch (error) {
         console.error("Error al procesar el archivo Excel:", error);
-        res.status(500).json({ error: "Error al procesar el archivo Excel", details: error.message });
+        res
+            .status(500)
+            .json({ error: "Error al procesar el archivo Excel", details: error.message });
     }
 };
-
